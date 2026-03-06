@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Calendar, CheckCircle2, Circle, Plus, X, ChevronLeft, ChevronRight, BookOpen, TrendingUp, TrendingDown, BarChart3, House } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Plus, X, ChevronLeft, ChevronRight, BookOpen, TrendingUp, TrendingDown, BarChart3, Menu } from 'lucide-react';
 
 const getLocalDateKey = (dateObj) => {
   const year = dateObj.getFullYear();
@@ -34,10 +34,7 @@ const SUBJECT_OPTIONS = [
 const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedDate] = useState(() => getLocalDateKey(new Date()));
-  const [showTabMenu, setShowTabMenu] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth >= 768;
-  });
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   
   // Initialize state from Firebase props
   const [studyData, setStudyData] = useState(initialStudyData || {});
@@ -365,7 +362,8 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       tomorrowTasks: [],
       studyRating: 0,
       newspaper: { status: 'not-yet' },
-      planSubjects: []
+      planSubjects: [],
+      subjectPlans: {}
     });
 
     const currentData = studyData[postDate] || getDefaultDayData(postDate);
@@ -374,12 +372,79 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
     const [planDate, setPlanDate] = useState(() => getLocalDateKey(new Date()));
     const [showPlanCalendar, setShowPlanCalendar] = useState(false);
     const [newPlan, setNewPlan] = useState('');
-    const planSubjects = (studyData[planDate]?.planSubjects) || [];
+    const [selectedSubject, setSelectedSubject] = useState('');
+
+    const normalizeSubjectPlans = (dayData) => {
+      const raw = dayData?.subjectPlans || {};
+      const normalized = {};
+
+      Object.entries(raw).forEach(([subject, tasksList]) => {
+        const cleanedTasks = (tasksList || [])
+          .map((task) => (typeof task === 'string' ? task.trim() : ''))
+          .filter(Boolean);
+        if (cleanedTasks.length > 0) {
+          normalized[subject] = cleanedTasks;
+        }
+      });
+
+      if (Object.keys(normalized).length === 0) {
+        const legacyTasks = (dayData?.tomorrowTasks || [])
+          .map((task) => (typeof task === 'string' ? task.trim() : ''))
+          .filter(Boolean);
+        if (legacyTasks.length > 0) {
+          const fallbackSubject = (dayData?.planSubjects || [])[0] || 'General';
+          normalized[fallbackSubject] = legacyTasks;
+        }
+      }
+
+      return normalized;
+    };
+
+    const flattenSubjectPlans = (subjectPlansMap) => (
+      Object.values(subjectPlansMap)
+        .flat()
+        .map((task) => (typeof task === 'string' ? task.trim() : ''))
+        .filter(Boolean)
+    );
+
+    const planDayData = studyData[planDate] || getDefaultDayData(planDate);
+    const normalizedPlansForDate = normalizeSubjectPlans(planDayData);
+    const planSubjects = Array.from(new Set([
+      ...(planDayData.planSubjects || []),
+      ...Object.keys(normalizedPlansForDate)
+    ]));
+    const hasSelectedSubject = Boolean(selectedSubject);
 
     useEffect(() => {
       const data = studyData[postDate] || getDefaultDayData(postDate);
       setFormData(data);
     }, [postDate, studyData]);
+
+    useEffect(() => {
+      const dayData = studyData[planDate] || getDefaultDayData(planDate);
+      const rawSubjectPlans = dayData.subjectPlans || {};
+      const subjectsWithPlans = Object.keys(rawSubjectPlans).filter((subject) =>
+        (rawSubjectPlans[subject] || [])
+          .map((task) => (typeof task === 'string' ? task.trim() : ''))
+          .filter(Boolean)
+          .length > 0
+      );
+      const subjectsForDate = Array.from(new Set([
+        ...(dayData.planSubjects || []),
+        ...subjectsWithPlans
+      ]));
+
+      if (!selectedSubject) {
+        if (subjectsForDate.length > 0) {
+          setSelectedSubject(subjectsForDate[0]);
+        }
+        return;
+      }
+
+      if (!SUBJECT_OPTIONS.includes(selectedSubject)) {
+        setSelectedSubject(subjectsForDate[0] || '');
+      }
+    }, [planDate, studyData, selectedSubject]);
 
     const saveFormData = async () => {
       const normalizedPostData = {
@@ -394,24 +459,30 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       await saveData(newStudyData, tasks);
     };
 
-    const planItems = (studyData[planDate]?.tomorrowTasks) || [];
     const plannedDatesSummary = Object.keys(studyData)
       .sort()
-      .filter((date) => ((studyData[date]?.tomorrowTasks || []).length > 0) || ((studyData[date]?.planSubjects || []).length > 0))
+      .filter((date) => Object.keys(normalizeSubjectPlans(studyData[date] || {})).length > 0)
       .map((date) => ({
         date,
-        tasks: studyData[date].tomorrowTasks || [],
-        subjects: studyData[date].planSubjects || []
+        subjectPlans: normalizeSubjectPlans(studyData[date] || {})
       }));
 
     const addPlanItem = async () => {
-      if (!newPlan.trim()) return;
+      if (!hasSelectedSubject || !newPlan.trim()) return;
       const existing = studyData[planDate] || getDefaultDayData(planDate);
+      const existingSubjectPlans = normalizeSubjectPlans(existing);
+      const updatedSubjectPlans = {
+        ...existingSubjectPlans,
+        [selectedSubject]: [...(existingSubjectPlans[selectedSubject] || []), newPlan.trim()]
+      };
+      const updatedSubjects = Array.from(new Set([...planSubjects, selectedSubject]));
       const newStudyData = {
         ...studyData,
         [planDate]: {
           ...existing,
-          tomorrowTasks: [...(existing.tomorrowTasks || []), newPlan.trim()]
+          planSubjects: updatedSubjects,
+          subjectPlans: updatedSubjectPlans,
+          tomorrowTasks: flattenSubjectPlans(updatedSubjectPlans)
         }
       };
       setStudyData(newStudyData);
@@ -419,43 +490,47 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       await saveData(newStudyData, tasks);
     };
 
-    const removePlanItem = async (index) => {
-      const existing = studyData[planDate] || getDefaultDayData(planDate);
-      const updatedPlans = [...(existing.tomorrowTasks || [])];
-      updatedPlans.splice(index, 1);
+    const removePlanItemFromOverview = async (date, subject, index) => {
+      const existing = studyData[date] || getDefaultDayData(date);
+      const existingSubjectPlans = normalizeSubjectPlans(existing);
+      const subjectPlans = [...(existingSubjectPlans[subject] || [])];
+      if (index < 0 || index >= subjectPlans.length) return;
+      subjectPlans.splice(index, 1);
+
+      const updatedSubjectPlans = { ...existingSubjectPlans };
+      if (subjectPlans.length === 0) {
+        delete updatedSubjectPlans[subject];
+      } else {
+        updatedSubjectPlans[subject] = subjectPlans;
+      }
+
+      const updatedSubjects = Object.keys(updatedSubjectPlans);
       const newStudyData = {
         ...studyData,
-        [planDate]: {
+        [date]: {
           ...existing,
-          tomorrowTasks: updatedPlans
+          planSubjects: updatedSubjects,
+          subjectPlans: updatedSubjectPlans,
+          tomorrowTasks: flattenSubjectPlans(updatedSubjectPlans)
         }
       };
       setStudyData(newStudyData);
+
+      if (date === planDate && !updatedSubjects.includes(selectedSubject)) {
+        setSelectedSubject(updatedSubjects[0] || '');
+      }
+
       await saveData(newStudyData, tasks);
     };
 
-    const togglePlanSubject = async (subject) => {
-      const existing = studyData[planDate] || getDefaultDayData(planDate);
-      const selected = existing.planSubjects || [];
-      const updatedSubjects = selected.includes(subject)
-        ? selected.filter((item) => item !== subject)
-        : [...selected, subject];
-
-      const newStudyData = {
-        ...studyData,
-        [planDate]: {
-          ...existing,
-          planSubjects: updatedSubjects
-        }
-      };
-      setStudyData(newStudyData);
-      await saveData(newStudyData, tasks);
+    const selectPlanSubject = (subject) => {
+      setSelectedSubject(subject);
     };
 
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.06em' }}>POST</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 text-center" style={{ letterSpacing: '0.06em' }}>POST</h2>
 
           <div className="mb-6">
             <label className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>POST DATE</label>
@@ -531,7 +606,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.06em' }}>PLAN</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 text-center" style={{ letterSpacing: '0.06em' }}>PLAN</h2>
 
           <div className="mb-6 relative">
             <label className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>PLAN DATE</label>
@@ -559,17 +634,28 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
               {SUBJECT_OPTIONS.map((subject) => (
                 <button
                   key={subject}
-                  onClick={() => togglePlanSubject(subject)}
+                  onClick={() => selectPlanSubject(subject)}
                   className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                    planSubjects.includes(subject)
+                    selectedSubject === subject
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-500'
+                      : planSubjects.includes(subject)
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-500'
                   }`}
                 >
                   {subject}
                 </button>
               ))}
             </div>
+            {hasSelectedSubject ? (
+              <p className="mt-2 text-xs text-emerald-700 font-medium">
+                Defining plan for: {selectedSubject}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-amber-700 font-medium">
+                Select a subject to enable plan entry.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-2 mb-3">
@@ -578,51 +664,57 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
               value={newPlan}
               onChange={(e) => setNewPlan(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addPlanItem()}
-              placeholder="Add a plan..."
-              className="flex-1 px-5 py-3 border border-slate-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none bg-white text-slate-800 font-medium placeholder-slate-400"
+              disabled={!hasSelectedSubject}
+              placeholder={hasSelectedSubject ? `Add plan for ${selectedSubject}...` : 'Select subject first'}
+              className={`flex-1 px-5 py-3 border rounded-xl focus:outline-none font-medium placeholder-slate-400 ${
+                hasSelectedSubject
+                  ? 'border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800'
+                  : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
             />
             <button
               onClick={addPlanItem}
-              className="px-5 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shadow-sm"
+              disabled={!hasSelectedSubject || !newPlan.trim()}
+              className={`px-5 py-3 rounded-xl transition-colors shadow-sm ${
+                hasSelectedSubject && newPlan.trim()
+                  ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                  : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+              }`}
             >
               <Plus className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="space-y-2">
-            {planItems.map((task, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-4 bg-sky-50 border border-sky-100 rounded-xl">
-                <span className="flex-1 text-slate-800 font-medium">{idx + 1}. {task}</span>
-                <button onClick={() => removePlanItem(idx)} className="text-red-500 hover:text-red-700 transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
-            {planItems.length === 0 && (
-              <p className="text-sm text-slate-500 px-1">No plans for this date.</p>
-            )}
-          </div>
-
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3" style={{ letterSpacing: '0.04em' }}>PLANS BY DATE</h3>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3" style={{ letterSpacing: '0.04em' }}>OVERVIEW</h3>
             <div className="space-y-3">
               {plannedDatesSummary.map((entry) => (
                 <div key={entry.date} className="p-4 bg-white border border-slate-200 rounded-xl">
-                  <div className="text-sm font-semibold text-slate-800 mb-2">{formatDisplayDate(entry.date)}</div>
-                  {entry.subjects.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {entry.subjects.map((subject) => (
-                        <span key={`${entry.date}-${subject}`} className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
-                          {subject}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    {entry.tasks.map((task, idx) => (
-                      <p key={`${entry.date}-${idx}`} className="text-sm text-slate-700">
-                        {idx + 1}. {task}
-                      </p>
+                  <div className="text-sm font-semibold text-slate-800 mb-3">{formatDisplayDate(entry.date)}</div>
+                  <div className="space-y-3">
+                    {Object.entries(entry.subjectPlans).map(([subject, tasksList]) => (
+                      <div key={`${entry.date}-${subject}`} className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
+                            {subject}
+                          </span>
+                          <span className="text-xs text-slate-500">{tasksList.length} plan(s)</span>
+                        </div>
+                        <div className="space-y-2">
+                          {tasksList.map((task, idx) => (
+                            <div key={`${entry.date}-${subject}-${idx}`} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                              <span className="flex-1 text-sm text-slate-700">{idx + 1}. {task}</span>
+                              <button
+                                onClick={() => removePlanItemFromOverview(entry.date, subject, idx)}
+                                className="text-red-500 hover:text-red-700 transition-colors"
+                                aria-label={`Delete plan ${idx + 1} for ${subject}`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -640,6 +732,30 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
   // Analysis Page Component
   const AnalysisPage = () => {
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    const getChecklistStatsForDate = (date) => {
+      const day = studyData[date] || {};
+      const todayTasks = day.tomorrowTasks || [];
+
+      const previousDate = parseDateKey(date);
+      previousDate.setDate(previousDate.getDate() - 1);
+      const previousDateKey = formatDateKey(previousDate);
+      const previousDay = studyData[previousDateKey] || {};
+
+      const carriedForward = (previousDay.tomorrowTasks || []).filter(
+        (task) => !(previousDay.completedTasks || []).includes(task)
+      );
+
+      const checklistTasks = [...carriedForward, ...todayTasks];
+      const completedChecklistTasks = (day.completedTasks || []).filter((task) =>
+        checklistTasks.includes(task)
+      );
+
+      return {
+        total: checklistTasks.length,
+        completed: Math.min(completedChecklistTasks.length, checklistTasks.length)
+      };
+    };
 
     const getSeededNoise = (seed) => {
       let hash = 0;
@@ -686,8 +802,9 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
       dates.forEach((date) => {
         const day = studyData[date] || {};
-        const totalTasks = (day.tomorrowTasks || []).length;
-        const completedTasks = (day.completedTasks || []).length;
+        const checklistStats = getChecklistStatsForDate(date);
+        const totalTasks = checklistStats.total;
+        const completedTasks = checklistStats.completed;
         const oldPrice = previousPrice;
 
         const goalCompletion = totalTasks > 0 ? completedTasks / totalTasks : (completedTasks > 0 ? 1 : 0.6);
@@ -773,9 +890,9 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
           ];
 
       const targetCompletionData = dates.map(date => {
-        const data = studyData[date];
-        const totalTasks = (data.tomorrowTasks || []).length;
-        const completedTasks = (data.completedTasks || []).length;
+        const checklistStats = getChecklistStatsForDate(date);
+        const totalTasks = checklistStats.total;
+        const completedTasks = checklistStats.completed;
         const rate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
         return {
           date: formatDayMonth(date),
@@ -802,7 +919,14 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
       const subjectWiseData = SUBJECT_OPTIONS.map((subject) => ({
         subject,
-        count: dates.filter((date) => (studyData[date].planSubjects || []).includes(subject)).length
+        count: dates.filter((date) => {
+          const day = studyData[date] || {};
+          const subjectPlans = day.subjectPlans || {};
+          const planSubjects = Object.keys(subjectPlans).length > 0
+            ? Object.keys(subjectPlans)
+            : (day.planSubjects || []);
+          return planSubjects.includes(subject);
+        }).length
       })).filter((item) => item.count > 0);
 
       const spacedRepetitionData = [
@@ -1101,7 +1225,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>SUBJECT-WISE PLAN</h2>
+          <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>SUBJECT</h2>
           {chartData.subjectWiseData.length === 0 ? (
             <p className="text-sm text-slate-500">No subject selections yet.</p>
           ) : (
@@ -1183,103 +1307,82 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
     );
   }
 
+  const navItems = [
+    { page: 'home', label: 'Home' },
+    { page: 'data', label: 'Room' },
+    { page: 'analysis', label: 'Board' }
+  ];
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    setShowMobileMenu(false);
+  };
+
   return (
     <div className={`min-h-screen ${currentPage === 'home' ? 'bg-white' : 'bg-slate-50'}`}>
-      {/* Sidebar Navigation */}
-      <aside
-        className={`fixed left-0 top-0 z-40 h-screen overflow-hidden transition-all duration-300 ease-out ${
-          showTabMenu
-            ? 'w-40 border-r border-white/10 bg-gradient-to-b from-[#1E293B] to-[#0F172A] p-2 shadow-2xl'
-            : 'w-14 bg-transparent p-1'
-        }`}
-      >
-        <div className="mt-6">
-          <nav className="space-y-2">
-            <div
-              className={`overflow-hidden transition-all duration-200 ease-out ${
-                showTabMenu ? 'max-h-80 opacity-100 translate-x-0' : 'max-h-0 opacity-0 -translate-x-2 pointer-events-none'
-              }`}
+      <nav className="bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between">
+            <h1
+              className="text-3xl font-semibold text-slate-900"
+              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', letterSpacing: '-0.02em' }}
             >
-              <div className="space-y-2 pt-1">
-                <button
-                  onClick={() => {
-                    setCurrentPage('home');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'home'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                >
-                  <House className="w-5 h-5" />
-                  <span>Home</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentPage('data');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'data'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                >
-                  <BookOpen className="w-5 h-5" />
-                  <span>Room</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentPage('analysis');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'analysis'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  <span>Board</span>
-                </button>
-              </div>
-            </div>
-          </nav>
-        </div>
-      </aside>
-
-      <div className={`transition-[padding] duration-300 ease-out ${showTabMenu ? 'pl-40' : 'pl-0'}`}>
-        {/* Top Header */}
-        <nav className="bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm sticky top-0 z-20">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-center gap-1">
-              <button
-                onClick={() => setShowTabMenu((prev) => !prev)}
-                className="text-slate-700 hover:text-slate-900 transition-colors"
-                aria-label="Collapse or expand sidebar"
-              >
-                <span className="text-xl font-bold leading-none">{'<'}</span>
-              </button>
-              <h1 className="text-3xl font-semibold text-slate-900 text-center" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', letterSpacing: '-0.02em' }}>
-                {'\u0c38\u0c26\u0c41\u0c35\u0c41'}
-              </h1>
-            </div>
+              {'\u0c38\u0c26\u0c41\u0c35\u0c41'}
+            </h1>
+            <button
+              onClick={() => setShowMobileMenu((prev) => !prev)}
+              className="md:hidden text-slate-700 hover:text-slate-900 transition-colors"
+              aria-label="Toggle navigation menu"
+            >
+              {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
-        </nav>
 
-        {/* Main Content */}
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-          {currentPage === 'home' && <HomePage />}
-          {currentPage === 'data' && <DataPage />}
-          {currentPage === 'analysis' && <AnalysisPage />}
-        </main>
+          <div className="hidden md:flex items-center justify-center gap-5 mt-2">
+            {navItems.map((item) => (
+              <button
+                key={item.page}
+                onClick={() => handlePageChange(item.page)}
+                className={`text-sm font-medium transition-colors underline-offset-4 ${
+                  currentPage === item.page
+                    ? 'text-emerald-700 underline'
+                    : 'text-slate-600 hover:text-emerald-700 hover:underline'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
 
-        {/* Footer */}
-        <footer className="bg-white border-t border-slate-200 mt-16">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 text-center" />
-        </footer>
-      </div>
+          {showMobileMenu && (
+            <div className="md:hidden mt-2 pt-2 border-t border-slate-200 flex flex-col items-center gap-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.page}
+                  onClick={() => handlePageChange(item.page)}
+                  className={`text-sm py-1 transition-colors underline-offset-4 ${
+                    currentPage === item.page
+                      ? 'text-emerald-700 underline'
+                      : 'text-slate-600 hover:text-emerald-700 hover:underline'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </nav>
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        {currentPage === 'home' && <HomePage />}
+        {currentPage === 'data' && <DataPage />}
+        {currentPage === 'analysis' && <AnalysisPage />}
+      </main>
+
+      <footer className="bg-white border-t border-slate-200 mt-16">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 text-center" />
+      </footer>
     </div>
   );
 };
