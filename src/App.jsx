@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import logo from './assets/logo.png';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Calendar, CheckCircle2, Circle, Plus, X, ChevronLeft, ChevronRight, BookOpen, TrendingUp, TrendingDown, BarChart3, House } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Plus, X, ChevronLeft, ChevronRight, BookOpen, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 
 const getLocalDateKey = (dateObj) => {
   const year = dateObj.getFullYear();
@@ -81,6 +82,13 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
   // Calendar component
   const CalendarView = ({ onSelectDate, selectedDate }) => {
+    const getTomorrowDateKey = () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return getLocalDateKey(tomorrow);
+    };
+    const tomorrowKey = getTomorrowDateKey();
+
     const [currentMonth, setCurrentMonth] = useState(() => {
       const baseDate = selectedDate ? parseDateKey(selectedDate) : new Date();
       return new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
@@ -149,17 +157,21 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
             if (!day) return <div key={idx} />;
             const dateStr = formatDateKey(day);
             const isSelected = dateStr === selectedDate;
+            const isTomorrow = dateStr === tomorrowKey;
             return (
               <button
                 key={idx}
                 onClick={() => onSelectDate(dateStr)}
-                className={`p-2 text-sm rounded-lg transition-all ${
+                className={`p-2 text-sm rounded-lg transition-all relative ${
                   isSelected
-                    ? 'bg-emerald-500 text-white font-semibold shadow-sm'
+                    ? 'bg-[#10B981] text-white font-semibold shadow-sm'
                     : 'hover:bg-emerald-50 text-slate-700'
                 }`}
               >
                 {day.getDate()}
+                {isTomorrow && !isSelected && (
+                  <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                )}
               </button>
             );
           })}
@@ -170,26 +182,39 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
   // Home Page Component
   const HomePage = () => {
-    const ForestCutIllustration = () => (
-      <svg viewBox="0 0 220 140" className="w-44 h-auto mx-auto" role="img" aria-label="Forest being cut illustration">
-        <rect x="0" y="112" width="220" height="28" fill="#d6e3d3" />
-        <polygon points="36,88 66,28 96,88" fill="#4f8d5d" />
-        <polygon points="40,70 66,20 92,70" fill="#5ca66e" />
-        <rect x="61" y="88" width="10" height="24" fill="#7a5a43" />
-        <polygon points="124,90 148,44 172,90" fill="#3f7f53" />
-        <polygon points="128,74 148,34 168,74" fill="#4f9663" />
-        <rect x="144" y="90" width="8" height="22" fill="#6f503a" />
-        <ellipse cx="112" cy="110" rx="20" ry="10" fill="#9a6f4f" />
-        <ellipse cx="112" cy="110" rx="14" ry="6" fill="#b78a68" />
-        <rect x="92" y="72" width="34" height="5" rx="2.5" fill="#6f503a" transform="rotate(18 109 74)" />
-        <rect x="124" y="66" width="24" height="5" rx="2.5" fill="#9aa4ad" transform="rotate(18 136 68)" />
+    const BookPencilIllustration = () => (
+      <svg viewBox="0 0 120 120" className="w-32 h-auto mx-auto" role="img" aria-label="Book and pencil illustration">
+        {/* Book */}
+        <rect x="20" y="30" width="60" height="50" rx="3" fill="#4F46E5" />
+        <rect x="25" y="35" width="50" height="40" rx="2" fill="#FFFFFF" />
+        <line x1="35" y1="45" x2="65" y2="45" stroke="#E5E7EB" strokeWidth="2" />
+        <line x1="35" y1="55" x2="65" y2="55" stroke="#E5E7EB" strokeWidth="2" />
+        <line x1="35" y1="65" x2="55" y2="65" stroke="#E5E7EB" strokeWidth="2" />
+        {/* Pencil */}
+        <rect x="75" y="25" width="8" height="50" rx="2" fill="#FBBF24" transform="rotate(15 79 50)" />
+        <polygon points="78,18 74,10 82,10" fill="#FBBF24" transform="rotate(15 78 14)" />
+        <rect x="77" y="70" width="4" height="8" rx="1" fill="#374151" transform="rotate(15 79 74)" />
       </svg>
     );
+
+    const greetings = [
+      'Hii Umesh, Keep Going Ummi',
+      'Great you are here Ummi',
+      'Perfect going Great',
+      'Welcome Umesh',
+      'Happy Man Umesh'
+    ];
+
+    const getRandomGreeting = () => {
+      const seed = selectedDate.split('-').reduce((acc, val) => acc + parseInt(val), 0);
+      return greetings[seed % greetings.length];
+    };
 
     const getHomeTodayTasks = () => {
       const todayData = studyData[selectedDate] || {};
       const todayTasks = todayData.tomorrowTasks || [];
       const completedTasks = todayData.completedTasks || [];
+      const subjectTasks = todayData.subjectTasks || {};
 
       const yesterday = parseDateKey(selectedDate);
       yesterday.setDate(yesterday.getDate() - 1);
@@ -199,10 +224,31 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       const yesterdayCompleted = yesterdayData.completedTasks || [];
       const carriedForwardTasks = yesterdayTasks.filter(task => !yesterdayCompleted.includes(task));
 
+      // Group tasks by subject
+      const tasksBySubject = {};
+      
+      // Add carried forward tasks
+      carriedForwardTasks.forEach(task => {
+        const subject = 'Carried Forward';
+        if (!tasksBySubject[subject]) tasksBySubject[subject] = [];
+        tasksBySubject[subject].push(task);
+      });
+
+      // Add today's tasks grouped by subject from subjectTasks
+      const savedSubjects = todayData.planSubjects || [];
+      savedSubjects.forEach(subject => {
+        const tasks = subjectTasks[subject] || [];
+        if (tasks.length > 0) {
+          if (!tasksBySubject[subject]) tasksBySubject[subject] = [];
+          tasksBySubject[subject].push(...tasks);
+        }
+      });
+
       return {
-        tasks: [...carriedForwardTasks, ...todayTasks],
+        tasksBySubject,
         carriedForwardCount: carriedForwardTasks.length,
-        completedTasks
+        completedTasks,
+        allTasks: [...carriedForwardTasks, ...todayTasks]
       };
     };
 
@@ -277,50 +323,70 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
     return (
       <div className="space-y-8">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 mb-3" style={{ letterSpacing: '0.05em' }}>NEW</h3>
-            {homeToday.carriedForwardCount > 0 && (
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <p className="text-sm text-amber-800 font-semibold mb-1">Carried forward from yesterday:</p>
-              </div>
-            )}
-            {homeToday.tasks.length === 0 ? (
+        {/* Greeting Card */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-800">{getRandomGreeting()}</h2>
+        </div>
+
+        <div className="space-y-8">
+          {/* New Section - Today's Tasks */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-800 mb-3" style={{ letterSpacing: '0.05em' }}>New</h3>
+            
+            {Object.keys(homeToday.tasksBySubject).length === 0 ? (
               <div className="py-10 text-center">
-                <ForestCutIllustration />
+                <BookPencilIllustration />
               </div>
             ) : (
-              <div className="space-y-2">
-                {homeToday.tasks.map((task, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center gap-3 p-4 rounded-xl border transition-colors ${
-                      homeToday.completedTasks.includes(task)
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-slate-50 border-slate-200 hover:border-emerald-300'
-                    }`}
-                  >
-                    <button onClick={() => toggleHomeTaskCompletion(task)}>
-                      {homeToday.completedTasks.includes(task) ? (
-                        <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                      ) : (
-                        <Circle className="w-6 h-6 text-slate-400" />
-                      )}
-                    </button>
-                    <span className={`flex-1 font-medium ${homeToday.completedTasks.includes(task) ? 'line-through text-slate-500' : 'text-slate-800'}`}>
-                      {idx + 1}. {task}
-                    </span>
+              <div className="space-y-4">
+                {homeToday.carriedForwardCount > 0 && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-sm text-amber-800 font-semibold">
+                      {homeToday.carriedForwardCount} carried forward from yesterday
+                    </p>
+                  </div>
+                )}
+                
+                {Object.entries(homeToday.tasksBySubject).map(([subject, subjectTasks]) => (
+                  <div key={subject} className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 bg-white border-b border-slate-200">
+                      <span className="text-sm font-semibold text-[#2563EB]">{subject}</span>
+                      <span className="ml-2 text-xs text-slate-500">({subjectTasks.length} {subjectTasks.length === 1 ? 'task' : 'tasks'})</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {subjectTasks.map((task, idx) => (
+                        <div
+                          key={`${subject}-${idx}`}
+                          className={`flex items-center gap-3 p-4 transition-colors ${
+                            homeToday.completedTasks.includes(task)
+                              ? 'bg-[#ECFDF5] border-l-4 border-l-[#10B981]'
+                              : 'bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <button onClick={() => toggleHomeTaskCompletion(task)} className="flex-shrink-0">
+                            {homeToday.completedTasks.includes(task) ? (
+                              <CheckCircle2 className="w-5 h-5 text-[#10B981]" />
+                            ) : (
+                              <Circle className="w-5 h-5 text-slate-400" />
+                            )}
+                          </button>
+                          <span className={`flex-1 font-medium ${homeToday.completedTasks.includes(task) ? 'line-through text-slate-500' : 'text-slate-800'}`}>
+                            {task}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 mb-3" style={{ letterSpacing: '0.05em' }}>SPACED</h3>
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-800 mb-3" style={{ letterSpacing: '0.05em' }}>Spaced</h3>
             {Object.keys(spacedTasks).length === 0 ? (
               <div className="py-10 text-center">
-                <ForestCutIllustration />
+                <BookPencilIllustration />
               </div>
             ) : (
               <div className="space-y-3">
@@ -339,7 +405,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
                             onClick={() => markTaskComplete(interval, task, data.originalDate, data.days)}
                             className="mt-0.5 flex-shrink-0"
                           >
-                            <Circle className="w-5 h-5 text-emerald-600 hover:text-emerald-700" />
+                            <Circle className="w-5 h-5 text-[#10B981] hover:text-emerald-700" />
                           </button>
                           <span className="text-slate-700 text-sm font-medium">{task}</span>
                         </div>
@@ -365,15 +431,31 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       tomorrowTasks: [],
       studyRating: 0,
       newspaper: { status: 'not-yet' },
-      planSubjects: []
+      planSubjects: [],
+      subjectTasks: {}
     });
 
     const currentData = studyData[postDate] || getDefaultDayData(postDate);
     const [formData, setFormData] = useState(currentData);
 
-    const [planDate, setPlanDate] = useState(() => getLocalDateKey(new Date()));
+    // Initialize planDate - try to get from localStorage first, otherwise default to tomorrow
+    const getInitialPlanDate = () => {
+      const saved = localStorage.getItem('saduvu_planDate');
+      if (saved) return saved;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return getLocalDateKey(tomorrow);
+    };
+    const [planDate, setPlanDate] = useState(getInitialPlanDate);
     const [showPlanCalendar, setShowPlanCalendar] = useState(false);
     const [newPlan, setNewPlan] = useState('');
+    const [showPostSaved, setShowPostSaved] = useState(false);
+    const [selectedPlanSubject, setSelectedPlanSubject] = useState('');
+
+    // Persist planDate to localStorage whenever it changes
+    useEffect(() => {
+      localStorage.setItem('saduvu_planDate', planDate);
+    }, [planDate]);
     const planSubjects = (studyData[planDate]?.planSubjects) || [];
 
     useEffect(() => {
@@ -392,26 +474,51 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       const newStudyData = { ...studyData, [postDate]: normalizedPostData };
       setStudyData(newStudyData);
       await saveData(newStudyData, tasks);
+      // Show success indicator
+      setShowPostSaved(true);
+      setTimeout(() => setShowPostSaved(false), 2000);
     };
 
     const planItems = (studyData[planDate]?.tomorrowTasks) || [];
-    const plannedDatesSummary = Object.keys(studyData)
-      .sort()
-      .filter((date) => ((studyData[date]?.tomorrowTasks || []).length > 0) || ((studyData[date]?.planSubjects || []).length > 0))
-      .map((date) => ({
-        date,
-        tasks: studyData[date].tomorrowTasks || [],
-        subjects: studyData[date].planSubjects || []
+    const plannedDatesSummary = [planDate].filter((date) => ((studyData[date]?.tomorrowTasks || []).length > 0) || ((studyData[date]?.planSubjects || []).length > 0)).map((date) => ({
+      date,
+      tasks: studyData[date].tomorrowTasks || [],
+      subjects: studyData[date].planSubjects || []
+    }));
+
+    // Group plans by subject for current selected date
+    const currentDateData = studyData[planDate] || { tomorrowTasks: [], planSubjects: [] };
+    const currentTasks = currentDateData.tomorrowTasks || [];
+    const currentSubjects = currentDateData.planSubjects || [];
+
+    // Group tasks by subject for display - show only subjects with tasks, in order by planSubjects array
+    const currentSubjectTasks = currentDateData.subjectTasks || {};
+    const tasksBySubject = currentSubjects
+      .filter(subject => currentSubjectTasks[subject] && currentSubjectTasks[subject].length > 0)
+      .map(subject => ({
+        subject,
+        tasks: currentSubjectTasks[subject] || []
       }));
 
     const addPlanItem = async () => {
       if (!newPlan.trim()) return;
+      if (!selectedPlanSubject) return;
       const existing = studyData[planDate] || getDefaultDayData(planDate);
+      const subjectTasks = existing.subjectTasks || {};
+      const subjectTaskList = subjectTasks[selectedPlanSubject] || [];
+      const savedSubjects = existing.planSubjects || [];
+      const updatedSubjects = savedSubjects.includes(selectedPlanSubject)
+        ? savedSubjects
+        : [...savedSubjects, selectedPlanSubject];
       const newStudyData = {
         ...studyData,
         [planDate]: {
           ...existing,
-          tomorrowTasks: [...(existing.tomorrowTasks || []), newPlan.trim()]
+          planSubjects: updatedSubjects,
+          subjectTasks: {
+            ...subjectTasks,
+            [selectedPlanSubject]: [...subjectTaskList, newPlan.trim()]
+          }
         }
       };
       setStudyData(newStudyData);
@@ -419,55 +526,45 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       await saveData(newStudyData, tasks);
     };
 
-    const removePlanItem = async (index) => {
-      const existing = studyData[planDate] || getDefaultDayData(planDate);
-      const updatedPlans = [...(existing.tomorrowTasks || [])];
-      updatedPlans.splice(index, 1);
+    const removePlanItem = async (subject, index, date = planDate) => {
+      const existing = studyData[date] || getDefaultDayData(date);
+      const subjectTasks = existing.subjectTasks || {};
+      const subjectTaskList = subjectTasks[subject] ? [...subjectTasks[subject]] : [];
+      subjectTaskList.splice(index, 1);
       const newStudyData = {
         ...studyData,
-        [planDate]: {
+        [date]: {
           ...existing,
-          tomorrowTasks: updatedPlans
+          subjectTasks: {
+            ...subjectTasks,
+            [subject]: subjectTaskList
+          }
         }
       };
       setStudyData(newStudyData);
       await saveData(newStudyData, tasks);
     };
 
-    const togglePlanSubject = async (subject) => {
-      const existing = studyData[planDate] || getDefaultDayData(planDate);
-      const selected = existing.planSubjects || [];
-      const updatedSubjects = selected.includes(subject)
-        ? selected.filter((item) => item !== subject)
-        : [...selected, subject];
-
-      const newStudyData = {
-        ...studyData,
-        [planDate]: {
-          ...existing,
-          planSubjects: updatedSubjects
-        }
-      };
-      setStudyData(newStudyData);
-      await saveData(newStudyData, tasks);
+    const togglePlanSubject = (subject) => {
+      // Keep subject selection temporary; persist only when a plan is added
+      setSelectedPlanSubject((prev) => (prev === subject ? '' : subject));
     };
 
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.06em' }}>POST</h2>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-12 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+          <h2 className="text-3xl font-medium text-gray-600 mb-6" style={{ letterSpacing: '0.06em' }}>Post</h2>
 
           <div className="mb-6">
-            <label className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>POST DATE</label>
-            <div className="w-full flex items-center gap-3 px-5 py-4 border border-emerald-200 rounded-xl bg-emerald-50">
-              <Calendar className="w-5 h-5 text-emerald-600" />
+            <div className="w-full flex items-center gap-3 px-5 py-4 border border-[#10B981] rounded-xl bg-[#ECFDF5]">
+              <Calendar className="w-5 h-5 text-[#10B981]" />
               <span className="font-semibold text-slate-800">{formatDisplayDate(postDate)}</span>
-              <span className="ml-auto text-xs font-semibold text-emerald-700">TODAY ONLY</span>
+              <span className="ml-auto text-base font-semibold text-[#10B981]">Today Only</span>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>HOURS STUDIED</label>
+            <label className="block text-lg font-semibold text-gray-600 mb-2" style={{ letterSpacing: '0.05em' }}>Hours Studied</label>
             <input
               type="number"
               min="0"
@@ -475,27 +572,27 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
               step="0.5"
               value={formData.hoursStudied}
               onChange={(e) => setFormData({ ...formData, hoursStudied: parseFloat(e.target.value) || 0 })}
-              className="w-full px-5 py-4 border border-slate-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none text-slate-800 font-semibold bg-white transition-colors"
+              className="w-full px-5 py-4 border border-[#E5E7EB] rounded-xl focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 focus:outline-none text-slate-800 font-semibold bg-[#F9FAFB] transition-colors"
             />
           </div>
 
           <div className="mb-6">
-            <h3 className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>QUALITY STUDY</h3>
+            <h3 className="block text-lg font-semibold text-gray-600 mb-2" style={{ letterSpacing: '0.05em' }}>Quality Study</h3>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   onClick={() => setFormData({ ...formData, studyRating: star })}
-                  className="text-2xl hover:scale-110 transition-transform"
+                  className={`text-2xl hover:scale-110 transition-transform ${star <= formData.studyRating ? 'text-amber-400' : 'text-gray-300'}`}
                 >
-                  {star <= formData.studyRating ? '⭐' : '☆'}
+                  {star <= formData.studyRating ? '★' : '☆'}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="mb-6">
-            <h3 className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>NEWSPAPER</h3>
+            <h3 className="block text-lg font-semibold text-gray-600 mb-2" style={{ letterSpacing: '0.05em' }}>Newspaper</h3>
             <div className="space-y-3">
               <div>
                 <div className="flex gap-2 flex-wrap">
@@ -508,8 +605,8 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
                       })}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                         formData.newspaper.status === status
-                          ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-sky-500'
+                          ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-[#2563EB]'
                       }`}
                     >
                       {status === 'not-yet' ? 'Not Yet' : status === 'partial' ? 'Partial' : 'Completed'}
@@ -520,26 +617,25 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center gap-3">
             <button
               onClick={saveFormData}
-              className="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+              className="px-5 py-2 bg-[#10B981] text-white text-sm font-semibold rounded-lg hover:bg-[#0d9668] transition-colors shadow-sm"
             >
-              Save
+              {showPostSaved ? 'Saved ✓' : 'Save'}
             </button>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.06em' }}>PLAN</h2>
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-12 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+          <h2 className="text-3xl font-medium text-gray-600 mb-6" style={{ letterSpacing: '0.06em' }}>Plan</h2>
 
           <div className="mb-6 relative">
-            <label className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>PLAN DATE</label>
             <button
               onClick={() => setShowPlanCalendar(!showPlanCalendar)}
-              className="w-full flex items-center gap-3 px-5 py-4 border border-slate-300 rounded-xl hover:border-emerald-400 transition-colors bg-white"
+              className="w-full flex items-center gap-3 px-5 py-4 border border-slate-300 rounded-xl hover:border-[#2563EB] transition-colors bg-white"
             >
-              <Calendar className="w-5 h-5 text-emerald-600" />
+              <Calendar className="w-5 h-5 text-[#2563EB]" />
               <span className="font-semibold text-slate-800">{formatDisplayDate(planDate)}</span>
             </button>
             {showPlanCalendar && (
@@ -554,16 +650,16 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
           </div>
 
           <div className="mb-6">
-            <h3 className="block text-xs font-semibold text-slate-500 mb-2" style={{ letterSpacing: '0.05em' }}>SUBJECTS</h3>
+            <h3 className="block text-lg font-semibold text-gray-600 mb-2" style={{ letterSpacing: '0.05em' }}>Subjects</h3>
             <div className="flex flex-wrap gap-2">
               {SUBJECT_OPTIONS.map((subject) => (
                 <button
                   key={subject}
                   onClick={() => togglePlanSubject(subject)}
                   className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                    planSubjects.includes(subject)
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-500'
+                    selectedPlanSubject === subject
+                      ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-300 hover:border-[#2563EB]'
                   }`}
                 >
                   {subject}
@@ -578,57 +674,45 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
               value={newPlan}
               onChange={(e) => setNewPlan(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addPlanItem()}
-              placeholder="Add a plan..."
-              className="flex-1 px-5 py-3 border border-slate-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none bg-white text-slate-800 font-medium placeholder-slate-400"
+              placeholder={selectedPlanSubject ? "Add a list item..." : "Select a subject first"}
+              disabled={!selectedPlanSubject}
+              className={`flex-1 px-5 py-3 border border-[#E5E7EB] rounded-xl focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 focus:outline-none bg-[#F9FAFB] text-slate-800 font-medium placeholder-slate-400 ${!selectedPlanSubject ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
             <button
               onClick={addPlanItem}
-              className="px-5 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shadow-sm"
+              disabled={!selectedPlanSubject}
+              className={`px-5 py-3 rounded-xl transition-colors shadow-sm ${selectedPlanSubject ? 'bg-[#2563EB] text-white hover:bg-[#1d4ed8]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
             >
               <Plus className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="space-y-2">
-            {planItems.map((task, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-4 bg-sky-50 border border-sky-100 rounded-xl">
-                <span className="flex-1 text-slate-800 font-medium">{idx + 1}. {task}</span>
-                <button onClick={() => removePlanItem(idx)} className="text-red-500 hover:text-red-700 transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
-            {planItems.length === 0 && (
-              <p className="text-sm text-slate-500 px-1">No plans for this date.</p>
-            )}
-          </div>
-
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3" style={{ letterSpacing: '0.04em' }}>PLANS BY DATE</h3>
-            <div className="space-y-3">
-              {plannedDatesSummary.map((entry) => (
-                <div key={entry.date} className="p-4 bg-white border border-slate-200 rounded-xl">
-                  <div className="text-sm font-semibold text-slate-800 mb-2">{formatDisplayDate(entry.date)}</div>
-                  {entry.subjects.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {entry.subjects.map((subject) => (
-                        <span key={`${entry.date}-${subject}`} className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
-                          {subject}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    {entry.tasks.map((task, idx) => (
-                      <p key={`${entry.date}-${idx}`} className="text-sm text-slate-700">
-                        {idx + 1}. {task}
-                      </p>
+            <h3 className="text-lg font-semibold text-slate-700 mb-3" style={{ letterSpacing: '0.04em' }}>List</h3>
+            <div className="space-y-4">
+              {tasksBySubject.map((subjectGroup) => (
+                <div key={subjectGroup.subject} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <span className="text-sm font-semibold text-[#2563EB]">{subjectGroup.subject}</span>
+                    <span className="ml-2 text-xs text-slate-500">({subjectGroup.tasks.length} plans)</span>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {subjectGroup.tasks.map((task, idx) => (
+                      <div key={`${planDate}-${idx}`} className="flex items-center justify-between px-4 py-3">
+                        <span className="text-sm text-slate-700">{idx + 1}. {task}</span>
+                        <button
+                          onClick={() => removePlanItem(subjectGroup.subject, idx, planDate)}
+                          className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
-              {plannedDatesSummary.length === 0 && (
-                <p className="text-sm text-slate-500">No plans added yet.</p>
+              {tasksBySubject.length === 0 && (
+                <p className="text-base text-slate-500">No Plans</p>
               )}
             </div>
           </div>
@@ -889,11 +973,11 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
       const item = payload[0].payload;
       const hours = Number(item.studyHours || 0);
       return (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
           <p className="text-xs font-semibold text-slate-500 mb-1">{item.fullDate}</p>
           <p className="text-sm font-semibold text-slate-800">Study Time: {hours.toFixed(1)} hours</p>
           {hours >= 12 && (
-            <span className="inline-flex mt-2 px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+            <span className="inline-flex mt-2 px-2 py-1 rounded-full text-xs font-semibold bg-[#ECFDF5] text-[#10B981]">
               🔥 Peak Performance
             </span>
           )}
@@ -903,21 +987,21 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
     return (
       <div className="space-y-8">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
           <div className="flex flex-col xl:flex-row gap-6">
             <div className="xl:w-80 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <BarChart3 className="w-5 h-5 text-slate-700" />
-                <h2 className="text-lg font-semibold text-slate-800" style={{ letterSpacing: '0.05em' }}>SOURCE</h2>
+                <h2 className="text-xl font-semibold text-slate-800" style={{ letterSpacing: '0.05em' }}>Source</h2>
               </div>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 mb-4">
-                <p className="text-xs font-semibold text-slate-500 mb-1" style={{ letterSpacing: '0.06em' }}>VISIBLE PRICE</p>
-                <p className={`text-4xl font-bold ${productivityValue >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <p className="text-base font-semibold text-slate-500 mb-1" style={{ letterSpacing: '0.06em' }}>Visible Price</p>
+                <p className={`text-4xl font-bold ${productivityValue >= 0 ? 'text-[#10B981]' : 'text-rose-600'}`}>
                   {productivityValue >= 0 ? '+' : ''}{productivityValue.toFixed(2)}
                 </p>
                 <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold ${
-                  isProductivityUp ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                  isProductivityUp ? 'bg-[#ECFDF5] text-[#10B981]' : 'bg-rose-100 text-rose-700'
                 }`}>
                   {isProductivityUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                   <span>{dayMove >= 0 ? '+' : ''}{dayMove.toFixed(2)}%</span>
@@ -926,19 +1010,19 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                  <p className="text-xs text-slate-500 font-semibold mb-1">STREAK</p>
+                  <p className="text-base text-slate-500 font-semibold mb-1">Streak</p>
                   <p className="text-lg font-bold text-slate-800">{chartData.latestProductivity.streak}d</p>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                  <p className="text-xs text-slate-500 font-semibold mb-1">GOAL HIT</p>
+                  <p className="text-base text-slate-500 font-semibold mb-1">Goal Hit</p>
                   <p className="text-lg font-bold text-slate-800">{chartData.latestProductivity.goalCompletionPercent}%</p>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                  <p className="text-xs text-slate-500 font-semibold mb-1">FOCUS</p>
+                  <p className="text-base text-slate-500 font-semibold mb-1">Focus</p>
                   <p className="text-lg font-bold text-slate-800">{chartData.latestProductivity.focusQuality}%</p>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                  <p className="text-xs text-slate-500 font-semibold mb-1">CONSISTENCY</p>
+                  <p className="text-base text-slate-500 font-semibold mb-1">Consistency</p>
                   <p className="text-lg font-bold text-slate-800">{chartData.latestProductivity.consistencyScore}%</p>
                 </div>
               </div>
@@ -1018,8 +1102,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-1" style={{ letterSpacing: '0.05em' }}>Daily Study Hours</h2>
-          <p className="text-sm text-slate-500 mb-4">Your study consistency and peak performance over time.</p>
+          <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Daily Study Hours</h2>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={chartData.studyHoursData}>
               <defs>
@@ -1065,7 +1148,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>TARGET VS COMPLETION RATE</h2>
+          <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Target Vs Completion Rate</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData.targetCompletionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -1081,7 +1164,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>NEWSPAPER</h2>
+          <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Newspaper</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData.newspaperData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -1101,9 +1184,9 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>SUBJECT-WISE PLAN</h2>
+          <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Subject-Wise Plan</h2>
           {chartData.subjectWiseData.length === 0 ? (
-            <p className="text-sm text-slate-500">No subject selections yet.</p>
+            <p className="text-base text-slate-500">No subject selections yet.</p>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <PieChart>
@@ -1133,7 +1216,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>STUDY QUALITY RATING</h2>
+            <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Study Quality Rating</h2>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -1156,7 +1239,7 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4" style={{ letterSpacing: '0.05em' }}>SPACED PROGRESS</h2>
+            <h2 className="text-2xl font-medium text-gray-600 mb-4" style={{ letterSpacing: '0.05em' }}>Spaced Progress</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData.spacedRepetitionData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -1172,11 +1255,174 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
     );
   };
 
+  const CalendarPage = () => {
+    const [currentMonth, setCurrentMonth] = useState(() => {
+      const today = new Date();
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    });
+    const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getLocalDateKey(new Date()));
+
+    // Keep currentMonth in sync with selectedCalendarDate
+    useEffect(() => {
+      const selectedDate = parseDateKey(selectedCalendarDate);
+      const monthToShow = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      setCurrentMonth(monthToShow);
+    }, [selectedCalendarDate]);
+
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const getCalendarDays = (date) => {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDay = firstDay.getDay();
+
+      const days = [];
+      for (let i = 0; i < startingDay; i++) {
+        days.push(null);
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        days.push(new Date(year, month, day));
+      }
+      return days;
+    };
+
+    const calendarDays = getCalendarDays(currentMonth);
+    const todayKey = getLocalDateKey(new Date());
+    const selectedDayData = studyData[selectedCalendarDate] || {};
+    const selectedTasks = selectedDayData.tomorrowTasks || [];
+    const selectedSubjects = selectedDayData.planSubjects || [];
+    const selectedPlans = [...selectedTasks, ...selectedSubjects];
+
+    const plannedDates = Object.keys(studyData)
+      .filter((date) => ((studyData[date]?.tomorrowTasks || []).length > 0) || ((studyData[date]?.planSubjects || []).length > 0))
+      .sort();
+
+    const nextMonth = () => {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    };
+
+    const prevMonth = () => {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    };
+
+    return (
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 bg-slate-50">
+            <button
+              onClick={prevMonth}
+              className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="w-5 h-5 text-slate-700" />
+            </button>
+            <h2 className="text-xl sm:text-2xl font-semibold text-slate-800" style={{ letterSpacing: '0.03em' }}>
+              {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+            </h2>
+            <button
+              onClick={nextMonth}
+              className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
+              aria-label="Next month"
+            >
+              <ChevronRight className="w-5 h-5 text-slate-700" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 border-b border-slate-200">
+            {weekDays.map((day) => (
+              <div key={day} className="py-3 text-center text-xs sm:text-sm font-semibold text-slate-500 bg-white">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7">
+            {calendarDays.map((day, idx) => {
+              if (!day) {
+                return <div key={`empty-${idx}`} className="h-24 sm:h-28 border-r border-b border-slate-100 bg-slate-50/50" />;
+              }
+
+              const dateKey = getLocalDateKey(day);
+              const dayData = studyData[dateKey] || {};
+              const taskCount = (dayData.tomorrowTasks || []).length;
+              const subjectCount = (dayData.planSubjects || []).length;
+              const totalActivities = taskCount + subjectCount;
+              const isToday = dateKey === todayKey;
+              const isSelected = dateKey === selectedCalendarDate;
+
+              return (
+                <button
+                  key={dateKey}
+                  onClick={() => setSelectedCalendarDate(dateKey)}
+                  className={`h-24 sm:h-28 p-2 border-r border-b border-slate-100 text-left transition-colors ${
+                    isSelected ? 'bg-[#ECFDF5]' : 'bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <span
+                      className={`text-sm font-semibold rounded-full w-7 h-7 flex items-center justify-center ${
+                        isToday ? 'bg-[#2563EB] text-white' : 'text-slate-700'
+                      }`}
+                    >
+                      {day.getDate()}
+                    </span>
+                    {totalActivities > 0 && (
+                      <span className="text-[10px] sm:text-xs font-semibold text-[#2563EB] bg-blue-100 px-2 py-0.5 rounded-full">
+                        {totalActivities}
+                      </span>
+                    )}
+                  </div>
+
+                  {taskCount > 0 && (
+                    <p className="mt-2 text-[10px] sm:text-xs text-slate-600 truncate">{taskCount} plan item{taskCount > 1 ? 's' : ''}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+          <h3 className="text-lg font-semibold text-slate-800" style={{ letterSpacing: '0.03em' }}>
+            {formatDisplayDate(selectedCalendarDate)}
+          </h3>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-700 mb-2">Plans</p>
+              {selectedPlans.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPlans.map((item, idx) => (
+                    <div key={`${selectedCalendarDate}-plan-${idx}`} className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 bg-slate-50">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No plans</p>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-200">
+              <p className="text-xs text-slate-500">
+                Planned days: <span className="font-semibold text-slate-700">{plannedDates.length}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <BookOpen className="w-16 h-16 text-emerald-600 mx-auto mb-4 animate-pulse" />
+          <BookOpen className="w-16 h-16 text-[#2563EB] mx-auto mb-4 animate-pulse" />
           <p className="text-slate-700 text-xl font-semibold">Loading Chaduvu...</p>
         </div>
       </div>
@@ -1184,105 +1430,81 @@ const Chaduvu = ({ initialStudyData, initialTasks, onSave }) => {
   }
 
   return (
-    <div className={`min-h-screen ${currentPage === 'home' ? 'bg-white' : 'bg-slate-50'}`}>
-      {/* Sidebar Navigation */}
-      <aside
-        className={`fixed left-0 top-0 z-40 h-screen overflow-hidden transition-all duration-300 ease-out ${
-          showTabMenu
-            ? 'w-40 border-r border-white/10 bg-gradient-to-b from-[#1E293B] to-[#0F172A] p-2 shadow-2xl'
-            : 'w-14 bg-transparent p-1'
-        }`}
-      >
-        <div className="mt-6">
-          <nav className="space-y-2">
-            <div
-              className={`overflow-hidden transition-all duration-200 ease-out ${
-                showTabMenu ? 'max-h-80 opacity-100 translate-x-0' : 'max-h-0 opacity-0 -translate-x-2 pointer-events-none'
-              }`}
-            >
-              <div className="space-y-2 pt-1">
-                <button
-                  onClick={() => {
-                    setCurrentPage('home');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'home'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                >
-                  <House className="w-5 h-5" />
-                  <span>Home</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentPage('data');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'data'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                  
-                >
-                  <BookOpen className="w-5 h-5" />
-                  <span>Room</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentPage('analysis');
-                  }}
-                  onDoubleClick={() => setShowTabMenu(false)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-out ${
-                    currentPage === 'analysis'
-                      ? 'bg-white/15 text-white shadow-[0_10px_28px_rgba(15,23,42,0.45)] ring-1 ring-white/15'
-                      : 'text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
-                  }`}
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  <span>Board</span>
-                </button>
-              </div>
+    <div className={`min-h-screen ${currentPage === 'home' ? 'bg-white' : 'bg-white'}`}>
+      {/* Top Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-10 h-16">
+          <div
+            className="h-full flex items-center"
+            style={{ fontFamily: '"Google Sans", "Product Sans", Inter, Arial, sans-serif', letterSpacing: '0.01em' }}
+          >
+            <div className="flex-1 flex items-center justify-start min-w-0">
+              <img src={logo} alt="Saduvu" className="h-12 w-auto" />
             </div>
-          </nav>
-        </div>
-      </aside>
 
-      <div className={`transition-[padding] duration-300 ease-out ${showTabMenu ? 'pl-40' : 'pl-0'}`}>
-        {/* Top Header */}
-        <nav className="bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm sticky top-0 z-20">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-center gap-1">
+            <nav className="flex-1 flex items-center justify-center gap-8 text-sm sm:text-base font-normal text-[#3c4043]">
               <button
-                onClick={() => setShowTabMenu((prev) => !prev)}
-                className="text-slate-700 hover:text-slate-900 transition-colors"
-                aria-label="Collapse or expand sidebar"
+                onClick={() => setCurrentPage('home')}
+                className={`border-b-2 transition-colors duration-150 ${
+                  currentPage === 'home'
+                    ? 'border-[#2563EB] text-[#2563EB]'
+                    : 'border-transparent hover:text-slate-900 hover:border-slate-300'
+                }`}
               >
-                <span className="text-xl font-bold leading-none">{'<'}</span>
+                Home
               </button>
-              <h1 className="text-3xl font-semibold text-slate-900 text-center" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', letterSpacing: '-0.02em' }}>
-                {'\u0c38\u0c26\u0c41\u0c35\u0c41'}
-              </h1>
+              <button
+                onClick={() => setCurrentPage('data')}
+                className={`border-b-2 transition-colors duration-150 ${
+                  currentPage === 'data'
+                    ? 'border-[#2563EB] text-[#2563EB]'
+                    : 'border-transparent hover:text-slate-900 hover:border-slate-300'
+                }`}
+              >
+                Room
+              </button>
+              <button
+                onClick={() => setCurrentPage('analysis')}
+                className={`border-b-2 transition-colors duration-150 ${
+                  currentPage === 'analysis'
+                    ? 'border-[#2563EB] text-[#2563EB]'
+                    : 'border-transparent hover:text-slate-900 hover:border-slate-300'
+                }`}
+              >
+                Board
+              </button>
+            </nav>
+
+            <div className="flex-1 flex items-center justify-end">
+              <button
+                onClick={() => setCurrentPage('calendar')}
+                className={`text-white text-sm sm:text-base font-medium rounded-lg px-5 py-2 transition-colors duration-150 shadow-sm ${
+                  currentPage === 'calendar' ? 'bg-[#1d4ed8]' : 'bg-[#2563EB] hover:bg-[#1d4ed8]'
+                }`}
+              >
+                Calendar
+              </button>
             </div>
           </div>
-        </nav>
+        </div>
+      </header>
 
-        {/* Main Content */}
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-          {currentPage === 'home' && <HomePage />}
-          {currentPage === 'data' && <DataPage />}
-          {currentPage === 'analysis' && <AnalysisPage />}
-        </main>
+      {/* Main Content */}
+      <main className="page-content max-w-7xl mx-auto px-6 sm:px-8 py-10">
+        {currentPage === 'home' && <HomePage />}
+        {currentPage === 'data' && <DataPage />}
+        {currentPage === 'analysis' && <AnalysisPage />}
+        {currentPage === 'calendar' && <CalendarPage />}
+      </main>
 
-        {/* Footer */}
-        <footer className="bg-white border-t border-slate-200 mt-16">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 text-center" />
-        </footer>
-      </div>
+      {/* Footer */}
+      <footer className="bg-slate-100 border-t border-slate-300 mt-20">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4 text-center" />
+      </footer>
     </div>
   );
 };
 
 export default Chaduvu;
+
+
